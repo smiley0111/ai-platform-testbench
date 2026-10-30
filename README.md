@@ -25,6 +25,8 @@ uv run pytest                 # 全部用例，Mock 后端
 uv run pytest -m "not ollama" # 只跑不依赖真实模型的用例
 ```
 
+`uv sync` 下载很慢时，可以直接用已装好依赖的系统 Python：`python -m pytest`。
+
 启动网关（默认 Mock 后端，开发用 key 为 `sk-local-dev`）：
 
 ```bash

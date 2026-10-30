@@ -4,6 +4,7 @@ Mock 能证明网关逻辑对，但证明不了真实后端返回的格式和 Mo
 Ollama 没启动或模型没下载时自动跳过。
 """
 
+import json
 import os
 import time
 
@@ -78,13 +79,17 @@ def test_stream_and_time_to_first_token(http):
         assert r.status_code == 200
         events = []
         for line in r.iter_lines():
-            if line.startswith("data: "):
-                events.append(line[6:])
-                if first_token_at is None and '"content":"' in line and '"content":""' not in line:
+            if not line.startswith("data: "):
+                continue
+            events.append(line[6:])
+            if first_token_at is None and events[-1] != "[DONE]":
+                choices = json.loads(events[-1]).get("choices") or [{}]
+                if choices[0].get("delta", {}).get("content"):
                     first_token_at = time.monotonic()
     assert events[-1] == "[DONE]"
     text = "".join(c["choices"][0]["delta"].get("content") or "" for c in sse_json(events) if c["choices"])
     assert text.strip()
+    assert first_token_at is not None
     print(f"\n首字延迟 {first_token_at - start:.2f}s，总耗时 {time.monotonic() - start:.2f}s")
 
 
