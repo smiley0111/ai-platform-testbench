@@ -281,9 +281,12 @@ def create_app(config: GatewayConfig | None = None, backend: Any = None) -> Fast
 
 
 def main() -> None:
+    import os
+
     import uvicorn
 
-    uvicorn.run(create_app(), host="127.0.0.1", port=8000)
+    uvicorn.run(create_app(), host="127.0.0.1", port=int(os.getenv("TESTBENCH_PORT", "8000")),
+                log_level=os.getenv("TESTBENCH_LOG_LEVEL", "info"))
 
 
 if __name__ == "__main__":

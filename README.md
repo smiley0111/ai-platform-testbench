@@ -11,7 +11,7 @@ AI 平台测试工作台。按 AI 开发平台的四大场景组织测试：模�
 | 阶段 | 内容 | 状态 |
 | --- | --- | --- |
 | 1 | 模型 API 测试：功能、流式、协议兼容、安全、可靠性 | 已完成 |
-| 2 | 性能基准：首字延迟、吞吐、并发上限（Locust） | 未开始 |
+| 2 | 性能基准：首字延迟、吞吐、并发上限（Locust） | 已完成，见 [性能报告](reports/perf-report.md) |
 | 3 | 训练场景：数据并行一致性、Checkpoint 保存与恢复 | 未开始 |
 | 4 | Notebook 场景：Jupyter 内核管理 | 未开始 |
 | 5 | AI 辅助测试：大模型根据接口文档生成用例 | 未开始 |
@@ -74,7 +74,35 @@ TESTBENCH_BACKEND=ollama uv run python -m testbench.gateway.app
 - **降级要如实告诉用户。** 响应里的 `model` 字段和响应头都要标明实际是哪个模型回答的。
 - **测试里关掉 SDK 的自动重试。** `openai` SDK 默认对 429 和 5xx 自动重试 2 次，不关掉就测不到网关的真实行为。
 
+### 阶段 2：性能基准
+
+```bash
+pip install locust
+python perf/run_benchmark.py            # 完整跑约 8 分钟，生成 reports/perf-report.md
+python perf/run_benchmark.py --quick    # 每档 15 秒，验证脚本用
+python perf/run_benchmark.py --report-only  # 不压测，用上次的原始数据重新出报告
+```
+
+`perf/locustfile.py` 是压测用户，`perf/run_benchmark.py` 负责起网关、调度场景、汇总出报告。
+
+| 场景 | 怎么测 | 看什么 |
+| --- | --- | --- |
+| 冷启动 vs 热启动 | 用 Ollama 的 `keep_alive: 0` 卸载模型后发单请求，再连发热请求 | 首 token 时延差多少倍 |
+| 阶梯并发 | 1/2/4/8/16 并发闭环压测，每档 60 秒 | 吞吐（token/s、TPM）在哪一档到顶，首 token p95 怎么涨；用 Little 定律校验 |
+| 负载下限流 | `rpm=12` 的 key，8 并发 | 实测放行数是否等于令牌桶理论值（容量 + 回填 × 时长），429 是否足够快 |
+| 负载下超时 | 网关超时 1.5 秒，16 并发 | 504 的实际等待时间、是否触发熔断、压后能否恢复 |
+
+压测方法上的几个选择：
+
+- **首 token 时延（TTFT）和端到端时延分开统计。** 流式接口用户感知的是首 token，只看端到端会掩盖排队问题。
+- **输出长度固定。** 提示词要求长回答、`max_tokens=64`、`temperature=0`，保证每次都生成满 64 个 token，不同并发档之间才可比。
+- **吞吐用后端返回的 `usage.completion_tokens` 计算**，而不是数 chunk。
+- **客户端出错后退避**（遵守 `Retry-After`，否则等 1 秒），和真实 SDK 行为一致；否则 429/503 会在闭环里空转，把计数刷爆。
+- **网关和 Locust 分两个进程。** Locust 依赖 gevent 打补丁，和 uvicorn 放在一个进程会互相干扰。
+
 ### 已知限制
 
 - 流式输出的内容过滤按 chunk 检查，拦截词如果被切在两个 chunk 之间会漏掉。真实系统需要维护一个滑动窗口缓冲。
 - Mock 后端按空格切分 token，只用于验证网关逻辑，不代表真实模型的 token 计数。
+- 性能数据来自 CPU 推理的 0.5B 模型，压测客户端和模型在同一台机器上，只能说明测试方法，绝对数值不代表 GPU 推理服务。
+- 流式请求的超时只约束首个 chunk，生成过程中卡住不会触发超时。

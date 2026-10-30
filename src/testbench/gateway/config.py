@@ -42,7 +42,9 @@ class GatewayConfig:
         return cls(
             backend=os.getenv("TESTBENCH_BACKEND", "mock"),
             ollama_url=os.getenv("OLLAMA_URL", "http://localhost:11434"),
-            keys={os.getenv("TESTBENCH_API_KEY", "sk-local-dev"): KeyPolicy()},
+            keys={os.getenv("TESTBENCH_API_KEY", "sk-local-dev"): KeyPolicy(
+                rpm=int(os.getenv("TESTBENCH_RPM", "600")))},
+            request_timeout=float(os.getenv("TESTBENCH_TIMEOUT", "60")),
             models={
                 "qwen-mini": ModelSpec(chat_model, fallback="qwen-backup"),
                 "qwen-backup": ModelSpec(chat_model),

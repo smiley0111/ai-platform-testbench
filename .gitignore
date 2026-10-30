@@ -4,6 +4,6 @@ __pycache__/
 .ruff_cache/
 *.egg-info/
 .env
-reports/
+reports/raw/
 runs/
 checkpoints/

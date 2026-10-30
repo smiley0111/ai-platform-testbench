@@ -15,6 +15,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+perf = ["locust>=2.30"]
 dev = [
     "pytest>=8.0",
     "openai>=1.40",
