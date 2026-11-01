@@ -16,6 +16,7 @@ dependencies = [
 
 [project.optional-dependencies]
 perf = ["locust>=2.30"]
+train = ["torch>=2.2", "tensorboard>=2.14"]
 dev = [
     "pytest>=8.0",
     "openai>=1.40",
@@ -42,4 +43,5 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 markers = [
     "ollama: 需要本地 Ollama 服务（http://localhost:11434），不可用时自动跳过",
+    "training: 需要 PyTorch（CPU 版即可），未安装时自动跳过",
 ]

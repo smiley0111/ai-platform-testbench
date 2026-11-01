@@ -12,7 +12,7 @@ AI 平台测试工作台。按 AI 开发平台的四大场景组织测试：模�
 | --- | --- | --- |
 | 1 | 模型 API 测试：功能、流式、协议兼容、安全、可靠性 | 已完成 |
 | 2 | 性能基准：首字延迟、吞吐、并发上限（Locust） | 已完成，见 [性能报告](reports/perf-report.md) |
-| 3 | 训练场景：数据并行一致性、Checkpoint 保存与恢复 | 未开始 |
+| 3 | 训练场景：数据并行一致性、Checkpoint 保存与恢复、容错 | 已完成 |
 | 4 | Notebook 场景：Jupyter 内核管理 | 未开始 |
 | 5 | AI 辅助测试：大模型根据接口文档生成用例 | 未开始 |
 | 6 | Kubernetes 部署：弹性伸缩、灰度发布（GitHub Actions + kind） | 未开始 |
@@ -23,9 +23,12 @@ AI 平台测试工作台。按 AI 开发平台的四大场景组织测试：模�
 uv sync --extra dev
 uv run pytest                 # 全部用例，Mock 后端
 uv run pytest -m "not ollama" # 只跑不依赖真实模型的用例
+uv run pytest -m "not training" # 跳过训练用例（每次训练都要起进程加载 torch，约 3 分钟）
+uv run pytest -n 4            # 并行跑（pytest-xdist）
 ```
 
 `uv sync` 下载很慢时，可以直接用已装好依赖的系统 Python：`python -m pytest`。
+训练用例需要 `uv sync --extra train`（CPU 版 PyTorch 即可），没装 torch 时自动跳过。
 
 启动网关（默认 Mock 后端，开发用 key 为 `sk-local-dev`）：
 
@@ -100,9 +103,40 @@ python perf/run_benchmark.py --report-only  # 不压测，用上次的原始数�
 - **客户端出错后退避**（遵守 `Retry-After`，否则等 1 秒），和真实 SDK 行为一致；否则 429/503 会在闭环里空转，把计数刷爆。
 - **网关和 Locust 分两个进程。** Locust 依赖 gevent 打补丁，和 uvicorn 放在一个进程会互相干扰。
 
+### 阶段 3：训练
+
+被测对象是 `src/testbench/training/trainer.py`，一个故意做小的训练框架：合成数据、带 Dropout 的 MLP、
+带动量的 SGD，CPU 上几秒跑完。它具备真实训练任务的关键机制：gloo 数据并行、定期 Checkpoint、
+自动从最新存档恢复、指标写 JSONL 和 TensorBoard。还内置了故障注入：在第 N 步杀进程、写存档写到一半时退出、
+只杀某一个 rank。
+
+```bash
+python -m testbench.training.trainer --out runs/demo --world-size 2 --crash-at-step 25  # 第 25 步被杀
+python -m testbench.training.trainer --out runs/demo --world-size 2                     # 自动从第 20 步恢复
+```
+
+| 文件 | 测什么 | 关键用例 |
+| --- | --- | --- |
+| `test_training.py` | 训练正确性 | loss 下降；同种子两次训练逐位一致；数据并行（2 进程）与单进程等价；各 rank 参数一致；TensorBoard 标量与日志一致 |
+| `test_checkpoint.py` | 断点续训与容错 | 被杀后恢复与不中断训练**逐位一致**；恢复后日志无重复步；写存档时崩溃不留坏存档；存档损坏退回上一个；旧存档清理；单个 rank 崩溃时整个作业快速失败不挂起；多进程恢复；2 进程中断后用 1 进程接着训 |
+
+测试思路：
+
+- **用“和不中断训练的结果一致”判断恢复是否正确**，不能只看“能恢复、loss 在降”。随机数状态、
+  优化器动量、数据读到第几批，任何一个没恢复，训练都能继续跑，loss 也照样下降，只是结果悄悄偏离了。
+- **每个“一致”都配一个反例对照**。例如故意不恢复随机数状态或优化器状态，断言结果**必须**偏离；
+  故意把批大小切错，断言和单进程**必须**不同。否则无法区分“真的正确”和“测试太松、怎样都能过”。
+- **数据并行只能近似相等**。两个进程各算一半再求平均，和单进程算整批在数学上等价，但浮点求和顺序不同，
+  实测参数差约 1e-7；容差设 1e-5，切分或平均写错时误差会大好几个数量级。
+- **存档要原子写入**。先写到 `.tmp` 目录，全部写完再改名；读取时忽略 `.tmp`，文件损坏就退回上一个。
+- **数据顺序只由（种子，步数）决定**。单进程也用 `num_replicas=1` 的 `DistributedSampler`，
+  所以换进程数恢复时，每一步取到的样本集合不变。
+
 ### 已知限制
 
 - 流式输出的内容过滤按 chunk 检查，拦截词如果被切在两个 chunk 之间会漏掉。真实系统需要维护一个滑动窗口缓冲。
 - Mock 后端按空格切分 token，只用于验证网关逻辑，不代表真实模型的 token 计数。
 - 性能数据来自 CPU 推理的 0.5B 模型，压测客户端和模型在同一台机器上，只能说明测试方法，绝对数值不代表 GPU 推理服务。
 - 流式请求的超时只约束首个 chunk，生成过程中卡住不会触发超时。
+- 训练场景只在单机 CPU 上用 gloo 模拟数据并行，没有覆盖 GPU/NCCL、多机网络、模型并行和混合精度。
+- 换进程数恢复时，各 rank 的随机数状态无法一一对应，只能重新播种，所以带 Dropout 时无法和原训练逐位一致。
