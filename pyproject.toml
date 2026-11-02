@@ -44,4 +44,5 @@ pythonpath = ["src"]
 markers = [
     "ollama: 需要本地 Ollama 服务（http://localhost:11434），不可用时自动跳过",
     "training: 需要 PyTorch（CPU 版即可），未安装时自动跳过",
+    "notebook: 启动真实的 Jupyter 内核（ipykernel）",
 ]
