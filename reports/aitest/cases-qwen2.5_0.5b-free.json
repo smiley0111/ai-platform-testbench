@@ -1,0 +1,214 @@
+[
+ {
+  "name": "缺少参数",
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "auth": "valid",
+  "expect_status": 400,
+  "body": {
+   "model": "qwen-mini",
+   "messages": [
+    {
+     "role": "user",
+     "content": "你好"
+    }
+   ]
+  },
+  "raw_body": null,
+  "expect_code": "invalid_parameter",
+  "source": "params"
+ },
+ {
+  "name": "类型错误",
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "auth": "valid",
+  "expect_status": 400,
+  "body": {
+   "model": "qwen-backup",
+   "messages": [
+    {
+     "role": "user",
+     "content": "你好"
+    }
+   ]
+  },
+  "raw_body": null,
+  "expect_code": "model_not_allowed",
+  "source": "params"
+ },
+ {
+  "name": "取值越界",
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "auth": "valid",
+  "expect_status": 400,
+  "body": {
+   "model": "qwen-mini",
+   "messages": [
+    {
+     "role": "user",
+     "content": "你好"
+    }
+   ],
+   "temperature": 3
+  },
+  "raw_body": null,
+  "expect_code": "invalid_parameter",
+  "source": "params"
+ },
+ {
+  "name": "消息内容包含拦截词",
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "auth": "valid",
+  "expect_status": 400,
+  "body": {
+   "model": "qwen-mini",
+   "messages": [
+    {
+     "role": "user",
+     "content": "你好，我不能处理拦截词"
+    }
+   ],
+   "temperature": 3
+  },
+  "raw_body": null,
+  "expect_code": "content_filter",
+  "source": "params"
+ },
+ {
+  "name": "超范围参数",
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "auth": "valid",
+  "expect_status": 400,
+  "body": {
+   "model": "qwen-mini",
+   "messages": [
+    {
+     "role": "user",
+     "content": "你好"
+    }
+   ],
+   "temperature": 3,
+   "max_tokens": 4097
+  },
+  "raw_body": null,
+  "expect_code": "invalid_parameter",
+  "source": "params"
+ },
+ {
+  "name": "超范围参数",
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "auth": "valid",
+  "expect_status": 400,
+  "body": {
+   "model": "qwen-mini",
+   "messages": [
+    {
+     "role": "user",
+     "content": "你好"
+    }
+   ],
+   "temperature": 3,
+   "max_tokens": 4096
+  },
+  "raw_body": null,
+  "expect_code": "invalid_parameter",
+  "source": "params"
+ },
+ {
+  "name": "模型不存在",
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "auth": "valid",
+  "expect_status": 404,
+  "body": {
+   "model": "qwen-backup",
+   "messages": [
+    {
+     "role": "user",
+     "content": "你好"
+    }
+   ],
+   "temperature": 3
+  },
+  "raw_body": null,
+  "expect_code": "model_not_found",
+  "source": "models"
+ },
+ {
+  "name": "模型类型不匹配",
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "auth": "valid",
+  "expect_status": 400,
+  "body": {
+   "model": "qwen-vl",
+   "messages": [
+    {
+     "role": "user",
+     "content": "你好"
+    }
+   ],
+   "temperature": 3
+  },
+  "raw_body": null,
+  "expect_code": "model_kind_mismatch",
+  "source": "models"
+ },
+ {
+  "name": "拦截词",
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "auth": "valid",
+  "expect_status": 400,
+  "body": {
+   "model": "qwen-mini",
+   "messages": [
+    {
+     "role": "user",
+     "content": "你好，我需要一些关于这个模型的信息。"
+    }
+   ],
+   "temperature": 3,
+   "max_tokens": 4096
+  },
+  "raw_body": null,
+  "expect_code": "content_filter",
+  "source": "models"
+ },
+ {
+  "name": "无参数请求",
+  "method": "GET",
+  "path": "/v1/chat/completions",
+  "auth": "valid",
+  "expect_status": 200,
+  "body": null,
+  "raw_body": null,
+  "expect_code": null,
+  "source": "success"
+ },
+ {
+  "name": "无参数请求，仅模型参数，仅图片输入，仅停止，仅内容，仅流式",
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "auth": "valid",
+  "expect_status": 200,
+  "body": {
+   "model": "qwen-mini",
+   "messages": [
+    {
+     "role": "user",
+     "content": "你好"
+    }
+   ],
+   "stop": "true"
+  },
+  "raw_body": null,
+  "expect_code": null,
+  "source": "success"
+ }
+]

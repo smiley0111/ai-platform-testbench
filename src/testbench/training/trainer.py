@@ -16,6 +16,7 @@ import os
 import random
 import shutil
 import sys
+import time
 from dataclasses import asdict, dataclass
 from datetime import timedelta
 from pathlib import Path
@@ -113,6 +114,18 @@ def set_rng_state(state: dict) -> None:
     random.setstate(state["python"])
 
 
+def replace_with_retry(src: Path, dst: Path, attempts: int = 20) -> None:
+    """Windows 上杀毒软件或索引服务可能短暂占用刚写完的文件，目录改名会报拒绝访问。"""
+    for i in range(attempts):
+        try:
+            os.replace(src, dst)
+            return
+        except PermissionError:
+            if i == attempts - 1:
+                raise
+            time.sleep(0.05 * (i + 1))
+
+
 def save_checkpoint(cfg: TrainConfig, step: int, model: nn.Module, optim, rank: int, world: int) -> None:
     """所有 rank 先写进 .tmp 目录，屏障后由 rank 0 写 meta.json 再整体改名，改名是原子操作。"""
     final = ckpt_root(cfg) / f"step-{step:06d}"
@@ -130,7 +143,7 @@ def save_checkpoint(cfg: TrainConfig, step: int, model: nn.Module, optim, rank: 
     if rank == 0:
         (tmp / "meta.json").write_text(json.dumps({"step": step, "world_size": world}))
         shutil.rmtree(final, ignore_errors=True)  # 从更早的存档恢复后会重写同一步；Windows 上不能覆盖已有目录
-        os.replace(tmp, final)
+        replace_with_retry(tmp, final)
         for old in list_checkpoints(cfg)[cfg.keep_ckpts:]:
             shutil.rmtree(old)
     barrier(world)

@@ -1,0 +1,62 @@
+[
+ {
+  "label": "人工编写（基准）",
+  "generated": 30,
+  "malformed": 0,
+  "executed": 30,
+  "valid": 30,
+  "covered": 26,
+  "killed": 14,
+  "seconds": 0.0
+ },
+ {
+  "label": "qwen2.5:0.5b 约束解码",
+  "generated": 33,
+  "malformed": 3,
+  "executed": 17,
+  "valid": 6,
+  "covered": 1,
+  "killed": 1,
+  "seconds": 377.9
+ },
+ {
+  "label": "qwen2.5:0.5b 无约束",
+  "generated": 24,
+  "malformed": 6,
+  "executed": 11,
+  "valid": 4,
+  "covered": 2,
+  "killed": 1,
+  "seconds": 389.8
+ },
+ {
+  "label": "qwen2.5:1.5b 约束解码",
+  "generated": 36,
+  "malformed": 10,
+  "executed": 18,
+  "valid": 15,
+  "covered": 11,
+  "killed": 7,
+  "seconds": 593.0
+ },
+ {
+  "label": "qwen2.5:1.5b 无约束",
+  "generated": 33,
+  "malformed": 1,
+  "executed": 23,
+  "valid": 13,
+  "covered": 9,
+  "killed": 5,
+  "seconds": 549.5
+ },
+ {
+  "label": "qwen2.5:3b 约束解码",
+  "generated": 38,
+  "malformed": 22,
+  "executed": 13,
+  "valid": 8,
+  "covered": 9,
+  "killed": 3,
+  "seconds": 529.5
+ }
+]

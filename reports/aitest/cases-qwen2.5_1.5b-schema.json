@@ -1,0 +1,347 @@
+[
+ {
+  "name": "请求体不是合法 JSON",
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "auth": "valid",
+  "expect_status": 400,
+  "body": null,
+  "raw_body": "{'model': 'qwen-mini', 'messages': [{'role': 'user', 'content': '你好'}], 'temperature': 1.5}",
+  "expect_code": "invalid_json",
+  "source": "auth"
+ },
+ {
+  "name": "temperature 超过上限",
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "auth": "valid",
+  "expect_status": 400,
+  "body": {
+   "model": "qwen-mini",
+   "messages": [
+    {
+     "role": "user",
+     "content": "你好"
+    }
+   ],
+   "temperature": 3
+  },
+  "raw_body": null,
+  "expect_code": "invalid_parameter",
+  "source": "models"
+ },
+ {
+  "name": "正常请求，模型支持图片输入",
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "auth": "valid",
+  "expect_status": 200,
+  "body": {
+   "model": "qwen-mini",
+   "messages": [
+    {
+     "role": "user",
+     "content": "你好"
+    }
+   ],
+   "temperature": 0.5,
+   "max_tokens": 100,
+   "n": 1,
+   "stream": false,
+   "stop": null
+  },
+  "raw_body": null,
+  "expect_code": null,
+  "source": "success"
+ },
+ {
+  "name": "流式请求，模型支持图片输入",
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "auth": "valid",
+  "expect_status": 200,
+  "body": {
+   "model": "qwen-mini",
+   "messages": [
+    {
+     "role": "user",
+     "content": "你好"
+    }
+   ],
+   "temperature": 0.5,
+   "max_tokens": 100,
+   "n": 1,
+   "stream": true,
+   "stop": null
+  },
+  "raw_body": null,
+  "expect_code": null,
+  "source": "success"
+ },
+ {
+  "name": "温度参数取值恰好在上限",
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "auth": "valid",
+  "expect_status": 400,
+  "body": {
+   "model": "qwen-mini",
+   "messages": [
+    {
+     "role": "user",
+     "content": "你好"
+    }
+   ],
+   "temperature": 2.1,
+   "max_tokens": 100,
+   "n": 1,
+   "stream": false,
+   "stop": null
+  },
+  "raw_body": null,
+  "expect_code": "invalid_parameter",
+  "source": "success"
+ },
+ {
+  "name": "温度参数取值恰好在下限",
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "auth": "valid",
+  "expect_status": 200,
+  "body": {
+   "model": "qwen-mini",
+   "messages": [
+    {
+     "role": "user",
+     "content": "你好"
+    }
+   ],
+   "temperature": 0.4,
+   "max_tokens": 100,
+   "n": 1,
+   "stream": false,
+   "stop": null
+  },
+  "raw_body": null,
+  "expect_code": null,
+  "source": "success"
+ },
+ {
+  "name": "模型不存在",
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "auth": "valid",
+  "expect_status": 404,
+  "body": {
+   "model": "invalid",
+   "messages": [
+    {
+     "role": "user",
+     "content": "你好"
+    }
+   ],
+   "temperature": 0.5,
+   "max_tokens": 100,
+   "n": 1,
+   "stream": false,
+   "stop": null
+  },
+  "raw_body": null,
+  "expect_code": "model_not_found",
+  "source": "success"
+ },
+ {
+  "name": "Key 不存在",
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "auth": "invalid",
+  "expect_status": 401,
+  "body": {
+   "model": "qwen-mini",
+   "messages": [
+    {
+     "role": "user",
+     "content": "你好"
+    }
+   ],
+   "temperature": 0.5,
+   "max_tokens": 100,
+   "n": 1,
+   "stream": false,
+   "stop": null
+  },
+  "raw_body": null,
+  "expect_code": "invalid_api_key",
+  "source": "success"
+ },
+ {
+  "name": "模型类型与接口不匹配",
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "auth": "valid",
+  "expect_status": 400,
+  "body": {
+   "model": "qwen-backup",
+   "messages": [
+    {
+     "role": "user",
+     "content": "你好"
+    }
+   ],
+   "temperature": 0.5,
+   "max_tokens": 100,
+   "n": 1,
+   "stream": false,
+   "stop": null
+  },
+  "raw_body": null,
+  "expect_code": "model_kind_mismatch",
+  "source": "success"
+ },
+ {
+  "name": "max_tokens 大于 4096",
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "auth": "valid",
+  "expect_status": 400,
+  "body": {
+   "model": "qwen-mini",
+   "messages": [
+    {
+     "role": "user",
+     "content": "你好"
+    }
+   ],
+   "temperature": 0.5,
+   "max_tokens": 4097,
+   "n": 1,
+   "stream": false,
+   "stop": null
+  },
+  "raw_body": null,
+  "expect_code": "invalid_parameter",
+  "source": "success"
+ },
+ {
+  "name": "任意消息内容包含拦截词",
+  "method": "POST",
+  "path": "/v1/chat/completions",
+  "auth": "valid",
+  "expect_status": 400,
+  "body": {
+   "model": "qwen-mini",
+   "messages": [
+    {
+     "role": "user",
+     "content": "违禁词示例"
+    }
+   ],
+   "temperature": 0.5,
+   "max_tokens": 100,
+   "n": 1,
+   "stream": false,
+   "stop": null
+  },
+  "raw_body": null,
+  "expect_code": "content_filter",
+  "source": "success"
+ },
+ {
+  "name": "正常请求",
+  "method": "POST",
+  "path": "/v1/embeddings",
+  "auth": "valid",
+  "expect_status": 200,
+  "body": {
+   "model": "embed-mini",
+   "input": "Hello, world!"
+  },
+  "raw_body": null,
+  "expect_code": null,
+  "source": "embeddings"
+ },
+ {
+  "name": "非法 input (空字符串)",
+  "method": "POST",
+  "path": "/v1/embeddings",
+  "auth": "valid",
+  "expect_status": 400,
+  "body": {
+   "model": "embed-mini",
+   "input": ""
+  },
+  "raw_body": null,
+  "expect_code": "invalid_parameter",
+  "source": "embeddings"
+ },
+ {
+  "name": "非法 input (空数组)",
+  "method": "POST",
+  "path": "/v1/embeddings",
+  "auth": "valid",
+  "expect_status": 400,
+  "body": {
+   "model": "embed-mini",
+   "input": []
+  },
+  "raw_body": null,
+  "expect_code": "invalid_parameter",
+  "source": "embeddings"
+ },
+ {
+  "name": "模型类型不匹配",
+  "method": "POST",
+  "path": "/v1/embeddings",
+  "auth": "valid",
+  "expect_status": 400,
+  "body": {
+   "model": "qwen-mini",
+   "input": "Hello, world!"
+  },
+  "raw_body": null,
+  "expect_code": "model_kind_mismatch",
+  "source": "embeddings"
+ },
+ {
+  "name": "鉴权失效",
+  "method": "POST",
+  "path": "/v1/embeddings",
+  "auth": "invalid",
+  "expect_status": 401,
+  "body": {
+   "model": "embed-mini",
+   "input": "Hello, world!"
+  },
+  "raw_body": null,
+  "expect_code": "invalid_api_key",
+  "source": "embeddings"
+ },
+ {
+  "name": "鉴权失效 (Key 不存在)",
+  "method": "POST",
+  "path": "/v1/embeddings",
+  "auth": "missing",
+  "expect_status": 401,
+  "body": {
+   "model": "embed-mini",
+   "input": "Hello, world!"
+  },
+  "raw_body": null,
+  "expect_code": "invalid_api_key",
+  "source": "embeddings"
+ },
+ {
+  "name": "鉴权失效 (Key 不存在，但有其他 Key)",
+  "method": "POST",
+  "path": "/v1/embeddings",
+  "auth": "limited",
+  "expect_status": 401,
+  "body": {
+   "model": "embed-mini",
+   "input": "Hello, world!"
+  },
+  "raw_body": null,
+  "expect_code": "invalid_api_key",
+  "source": "embeddings"
+ }
+]
