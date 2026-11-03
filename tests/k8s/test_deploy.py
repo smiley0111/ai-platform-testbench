@@ -40,8 +40,9 @@ def test_deleted_pod_is_replaced_without_failed_requests(baseline, results):
         time.sleep(2)
         kubectl("delete", "pod", victim, "--wait=false")
         wait_for(lambda: victim not in ready_pods() and len(ready_pods()) == 2, 90, "替补 Pod 就绪")
+        # 被删的 Pod 还要走完 preStop 和优雅退出，这段时间仍在处理已接的请求
+        wait_for(lambda: victim not in {p["metadata"]["name"] for p in pods()}, 60, "被删的 Pod 退出")
         time.sleep(2)
-    assert victim not in {p["metadata"]["name"] for p in pods()}
     assert not load.failures(), load.summary()
     results["pod_delete"] = load.summary()
 
