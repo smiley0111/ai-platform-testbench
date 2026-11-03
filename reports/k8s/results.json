@@ -1,0 +1,75 @@
+{
+  "readiness_gate": {
+    "warmup_s": 15,
+    "requests_while_warming": 264,
+    "requests": 320,
+    "failures": 0,
+    "failure_kinds": {}
+  },
+  "pod_delete": {
+    "requests": 412,
+    "failures": 0,
+    "failure_kinds": {}
+  },
+  "process_exit": {
+    "requests": 121,
+    "failures": 17,
+    "failure_kinds": {
+      "ReadError": 8,
+      "RemoteProtocolError": 9
+    }
+  },
+  "rolling_update": {
+    "requests": 610,
+    "failures": 0,
+    "failure_kinds": {}
+  },
+  "rolling_update_without_prestop": {
+    "requests": 319,
+    "failures": 16,
+    "failure_kinds": {
+      "ReadError": 7,
+      "RemoteProtocolError": 5,
+      "ReadTimeout": 4
+    }
+  },
+  "broken_release": {
+    "requests": 416,
+    "failures": 0,
+    "failure_kinds": {}
+  },
+  "canary": {
+    "samples": 643,
+    "canary_share": 0.2566,
+    "expected": 0.25,
+    "tolerance": 0.0683,
+    "rollback": {
+      "requests": 432,
+      "failures": 0,
+      "failure_kinds": {}
+    }
+  },
+  "hpa": {
+    "idle_cpu_pct": 25,
+    "peak_cpu_pct": 67,
+    "peak_replicas": 3,
+    "scale_out_s": 34,
+    "scale_in_s": 56,
+    "under_load": {
+      "requests": 4898,
+      "failures": 0,
+      "failure_kinds": {}
+    },
+    "during_scale_in": {
+      "requests": 267,
+      "failures": 0,
+      "failure_kinds": {}
+    }
+  },
+  "rate_limit": {
+    "replicas": 3,
+    "rpm_per_key": 6,
+    "requests": 90,
+    "admitted": 18
+  }
+}

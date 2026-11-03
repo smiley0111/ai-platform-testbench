@@ -1,6 +1,10 @@
 # ai-platform-testbench
 
-AI 平台测试工作台。按 AI 开发平台的四大场景组织测试：模型 API、模型推理、模型训练、Notebook。
+[![tests](https://github.com/smiley0111/ai-platform-testbench/actions/workflows/tests.yml/badge.svg)](https://github.com/smiley0111/ai-platform-testbench/actions/workflows/tests.yml)
+[![k8s](https://github.com/smiley0111/ai-platform-testbench/actions/workflows/k8s.yml/badge.svg)](https://github.com/smiley0111/ai-platform-testbench/actions/workflows/k8s.yml)
+
+AI 平台测试工作台。按 AI 开发平台的四大场景组织测试：模型 API、模型推理、模型训练、Notebook，
+另外包括 AI 辅助生成用例的评测，以及网关在 Kubernetes 上的部署、发布和弹性伸缩测试。
 
 被测对象是一个自己写的 **OpenAI 兼容推理网关**，后端可以接本地 Ollama（真实模型），也可以接一个
 **能注入故障的 Mock 后端**。可靠性测试（重试、超时、熔断、降级）必须能稳定复现故障，真实模型做不到，
@@ -15,7 +19,7 @@ AI 平台测试工作台。按 AI 开发平台的四大场景组织测试：模�
 | 3 | 训练场景：数据并行一致性、Checkpoint 保存与恢复、容错 | 已完成 |
 | 4 | Notebook 场景：Jupyter 内核生命周期、超时中断、崩溃恢复、资源限制、多用户 | 已完成 |
 | 5 | AI 辅助测试：大模型根据接口文档生成用例，用需求覆盖和变异得分评价 | 已完成，见 [评测报告](reports/aitest-report.md) |
-| 6 | Kubernetes 部署：弹性伸缩、灰度发布（GitHub Actions + kind） | 未开始 |
+| 6 | Kubernetes 部署：探针、滚动更新、灰度发布、弹性伸缩（GitHub Actions + kind） | 已完成，见 [实测数据](reports/k8s/results.json) |
 
 ## 运行
 
@@ -50,12 +54,16 @@ uv run python -m testbench.aitest.evaluate
 uv run python -m testbench.aitest.evaluate --runs qwen2.5:1.5b/schema --force
 ```
 
-AI 生成用例评测（需要 Ollama 和对应模型；生成结果会缓存，重跑只重新执行和打分）：
+K8s 用例在 GitHub Actions 里跑（见 `.github/workflows/k8s.yml`）。本地有 Docker 和 kind 时：
 
 ```bash
-uv run python -m testbench.aitest.evaluate
-uv run python -m testbench.aitest.evaluate --runs qwen2.5:1.5b/schema --force
+kind create cluster --name testbench --config deploy/kind-config.yaml
+docker build -t testbench-gateway:ci . && kind load docker-image testbench-gateway:ci --name testbench
+# 安装 metrics-server 并加 --kubelet-insecure-tls，步骤同 workflow
+TESTBENCH_K8S=1 uv run pytest tests/k8s -v
 ```
+
+不设置 `TESTBENCH_K8S=1` 时这些用例自动跳过，避免误操作 kubectl 当前指向的真实集群。
 
 ## 网关做了什么
 
@@ -223,6 +231,52 @@ python -m testbench.training.trainer --out runs/demo --world-size 2             
 - **生成的用例不能直接当回归用例。** 期望和实际不一致时，可能是模型错了，也可能是网关真有 bug；
   如果把实际结果回填成期望，就等于把 bug 固化进用例。比较稳妥的用法是让模型补充思路、人工审核后入库。
 
+### 阶段 6：Kubernetes
+
+把网关打成镜像部署到 kind 集群（`deploy/`），用例在 `tests/k8s/`，通过 kubectl 操作集群，
+请求走 NodePort 经过 kube-proxy 负载均衡。每个响应带 `x-gateway-version` 和 `x-served-by` 头，
+用来统计流量落在哪个版本、哪个 Pod。压测客户端每个请求新建连接，否则长连接会一直落在同一个 Pod 上，测不出分流。
+
+为了测试，网关补了几个部署相关的能力：`/readyz` 就绪检查（和 `/healthz` 存活检查分开）、
+模拟加载模型的启动预热（`TESTBENCH_STARTUP_DELAY`）、模拟坏版本的就绪失败开关（`TESTBENCH_FAIL_READY`）、
+Mock 后端的固定推理耗时（`TESTBENCH_MOCK_LATENCY`，让滚动更新时有正在处理中的请求）。
+
+| 文件 | 测什么 | 关键用例 |
+| --- | --- | --- |
+| `test_deploy.py` | 部署与自愈 | 流量分到所有副本；**预热中的 Pod 不接流量**；删 Pod 后补齐且不丢请求；进程退出后原地重启 |
+| `test_rollout.py` | 发布 | **滚动更新不丢请求**，以及去掉 preStop 的对照组；**坏版本被挡住**、回滚后旧 Pod 不重建；灰度按副本比例分流，撤回后流量全回旧版 |
+| `test_scaling.py` | 弹性伸缩 | HPA 负载下扩容、新副本接流量、撤掉负载后缩回且缩容期间不丢请求；**多副本下限流配额被放大** |
+
+CI 上一次运行的实测数据（[results.json](reports/k8s/results.json)）：
+
+| 场景 | 请求数 | 失败 | 说明 |
+| --- | --- | --- | --- |
+| 滚动更新（有 preStop） | 610 | 0 | |
+| 滚动更新（无 preStop，对照） | 319 | 16（5%） | 连接被重置、读超时 |
+| 删除 Pod | 412 | 0 | |
+| 进程自己退出 | 121 | 17 | 只记录不断言，见下文 |
+| 坏版本发布并回滚 | 416 | 0 | 流量全程在旧版本 |
+| 灰度 3:1 | 643 | 0 | 灰度占 25.7%，期望 25% |
+| HPA 扩容 / 缩容 | 4898 / 267 | 0 / 0 | CPU 25% → 67%，2 → 3 副本；扩容 34 秒，缩容 56 秒 |
+| 限流（3 副本，每 Key 6 次/分钟） | 90 | — | 放行 18 次，正好 3 × 6 |
+
+几个发现：
+
+- **preStop 不是可有可无的。** Pod 被删除时，“从 Endpoint 摘除”和“给容器发 SIGTERM”是并行的。
+  没有 preStop 时进程先停止监听，而 kube-proxy 的转发规则还没更新，转过来的新连接就会失败。
+  同样的滚动更新，加上 `sleep 5` 的 preStop 后失败从 16 次降到 0。
+- **maxUnavailable=0 才能挡住坏版本。** 新 Pod 就绪检查一直失败时，旧 Pod 一个都不会被删，线上容量和版本都不受影响，
+  `rollout undo` 后直接删掉新 Pod，旧 Pod 不重建。如果允许不可用副本，坏版本发布会先砍掉一部分容量。
+- **就绪和存活检查必须分开。** 预热期间存活检查通过、就绪检查不通过，Pod 不接流量也不会被重启；
+  如果只有一个检查，要么预热时就被转来流量，要么加载模型太慢被 K8s 反复重启。存活检查也不应该检查后端，
+  否则后端模型故障会让所有网关实例一起被重启。
+- **进程崩溃和优雅下线是两回事。** 删 Pod 时有 preStop 缓冲，0 失败；进程自己退出时没有这个缓冲，
+  从退出到就绪探针发现之间转过来的请求会失败（17 次）。降低这部分损失要靠客户端或网关前一层的重试。
+- **单实例限流在多副本下失效。** 令牌桶在每个进程的内存里，3 个副本时同一个 Key 实际放行 3 倍配额，
+  扩容、重启 Pod 还会重置配额。用例刻画的是现状，改成 Redis 等共享存储的全局限流后应改为断言不超过单实例配额。
+  熔断器状态同样是每个实例各自一份。
+- **用 port-forward 测不出负载均衡。** `kubectl port-forward` 到 Service 时只连一个 Pod，所以用 kind 的端口映射走 NodePort。
+
 ### 已知限制
 
 - 流式输出的内容过滤按 chunk 检查，拦截词如果被切在两个 chunk 之间会漏掉。真实系统需要维护一个滑动窗口缓冲。
@@ -233,4 +287,6 @@ python -m testbench.training.trainer --out runs/demo --world-size 2             
 - 换进程数恢复时，各 rank 的随机数状态无法一一对应，只能重新播种，所以带 Dropout 时无法和原训练逐位一致。
 - Notebook 的内存限制是服务端轮询内核进程的 RSS（每 0.1 秒一次），瞬间的内存尖峰可能漏检；生产环境应由 cgroup 或容器限制兜底。
 - Notebook 服务是进程内的 Python API，没有做 HTTP/WebSocket 接口和鉴权，这部分在阶段 1 的网关里已经覆盖了测试方法。
+- K8s 用例跑在单节点 kind 集群上，后端是 Mock，没有 GPU 调度、多节点网络和真实模型加载时间；
+  灰度只能按副本数比例分流，更细的权重需要 Ingress 或服务网格。压测客户端每次新建连接，长连接客户端在下线时的表现没有覆盖。
 - AI 生成用例只评测了 3B 以下的本地模型、一版提示词和一次采样（温度 0），结论只说明评测方法，不代表大模型的上限。
