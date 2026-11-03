@@ -1,0 +1,64 @@
+name: k8s
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  kind:
+    name: kind 集群：部署 / 发布 / 弹性伸缩
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+
+      - name: 创建 kind 集群
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: testbench
+          config: deploy/kind-config.yaml
+
+      - name: 构建镜像并导入集群
+        run: |
+          docker build -t testbench-gateway:ci .
+          kind load docker-image testbench-gateway:ci --name testbench
+
+      - name: 安装 metrics-server（HPA 需要）
+        run: |
+          kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+          # kind 的 kubelet 用自签证书
+          kubectl -n kube-system patch deployment metrics-server --type=json \
+            -p '[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
+          kubectl -n kube-system rollout status deployment/metrics-server --timeout=180s
+
+      - name: 运行 K8s 用例
+        env:
+          TESTBENCH_K8S: "1"
+        run: pytest tests/k8s -v
+
+      - name: 实测数据写入运行摘要
+        if: always()
+        run: |
+          if [ -f reports/k8s/results.json ]; then
+            { echo '## K8s 实测数据'; echo '```json'; cat reports/k8s/results.json; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: 失败时导出集群状态
+        if: failure()
+        run: |
+          kubectl -n testbench get all,hpa,endpoints -o wide || true
+          kubectl -n testbench get events --sort-by=.lastTimestamp || true
+          kubectl -n testbench describe pods || true
+          kubectl -n testbench logs -l app=gateway --all-containers --prefix --tail=100 || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k8s-results
+          path: reports/k8s/
+          if-no-files-found: ignore

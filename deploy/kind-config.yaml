@@ -1,0 +1,10 @@
+# 单节点 kind 集群。NodePort 30080 映射到宿主机，测试请求经过 kube-proxy 负载均衡，
+# 不能用 kubectl port-forward：它只连一个 Pod，测不出分流和滚动更新。
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 30080
+        protocol: TCP

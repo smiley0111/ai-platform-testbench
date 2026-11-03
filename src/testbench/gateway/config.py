@@ -34,16 +34,24 @@ class GatewayConfig:
     max_tokens_limit: int = 4096
     blocked_words: list[str] = field(default_factory=list)
     admin_token: str | None = None  # 设置后才开放 /admin 故障注入接口
+    version: str = "dev"  # 写进响应头，灰度发布时用来区分新旧版本
+    startup_delay: float = 0.0  # 启动后多久才就绪，模拟加载模型
+    fail_ready: bool = False  # 模拟一个就绪检查永远失败的坏版本
+    mock_latency: float = 0.0  # Mock 后端每次调用的耗时
 
     @classmethod
     def default(cls) -> GatewayConfig:
         chat_model = os.getenv("TESTBENCH_CHAT_MODEL", "qwen2.5:0.5b")
         embed_model = os.getenv("TESTBENCH_EMBED_MODEL", "nomic-embed-text")
+        keys = {os.getenv("TESTBENCH_API_KEY", "sk-local-dev"): KeyPolicy(
+            rpm=int(os.getenv("TESTBENCH_RPM", "600")))}
+        for item in filter(None, os.getenv("TESTBENCH_EXTRA_KEYS", "").split(",")):
+            key, rpm = item.rsplit(":", 1)  # 格式：key:rpm,key:rpm
+            keys[key] = KeyPolicy(rpm=int(rpm))
         return cls(
             backend=os.getenv("TESTBENCH_BACKEND", "mock"),
             ollama_url=os.getenv("OLLAMA_URL", "http://localhost:11434"),
-            keys={os.getenv("TESTBENCH_API_KEY", "sk-local-dev"): KeyPolicy(
-                rpm=int(os.getenv("TESTBENCH_RPM", "600")))},
+            keys=keys,
             request_timeout=float(os.getenv("TESTBENCH_TIMEOUT", "60")),
             models={
                 "qwen-mini": ModelSpec(chat_model, fallback="qwen-backup"),
@@ -52,4 +60,8 @@ class GatewayConfig:
             },
             blocked_words=["违禁词示例"],
             admin_token=os.getenv("TESTBENCH_ADMIN_TOKEN"),
+            version=os.getenv("TESTBENCH_VERSION", "dev"),
+            startup_delay=float(os.getenv("TESTBENCH_STARTUP_DELAY", "0")),
+            fail_ready=os.getenv("TESTBENCH_FAIL_READY", "") == "1",
+            mock_latency=float(os.getenv("TESTBENCH_MOCK_LATENCY", "0")),
         )

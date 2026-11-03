@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import socket
+import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any
@@ -43,7 +45,8 @@ def _sse(data: dict) -> str:
 def create_app(config: GatewayConfig | None = None, backend: Any = None) -> FastAPI:
     config = config or GatewayConfig.default()
     if backend is None:
-        backend = MockBackend() if config.backend == "mock" else OllamaBackend(config.ollama_url)
+        backend = (MockBackend(config.mock_latency) if config.backend == "mock"
+                   else OllamaBackend(config.ollama_url))
 
     app = FastAPI(title="ai-platform-testbench gateway")
     state: dict[str, Any] = {}
@@ -56,6 +59,8 @@ def create_app(config: GatewayConfig | None = None, backend: Any = None) -> Fast
 
     reset_state()
     app.state.config, app.state.backend, app.state.gateway = config, backend, state
+    started = time.monotonic()
+    pod = socket.gethostname()
 
     @app.exception_handler(APIError)
     async def _api_error(request: Request, exc: APIError) -> JSONResponse:
@@ -66,6 +71,8 @@ def create_app(config: GatewayConfig | None = None, backend: Any = None) -> Fast
         rid = request.headers.get("x-request-id") or f"req-{uuid.uuid4().hex[:16]}"
         response = await call_next(request)
         response.headers["x-request-id"] = rid
+        response.headers["x-gateway-version"] = config.version
+        response.headers["x-served-by"] = pod
         return response
 
     # ---------- 公共检查 ----------
@@ -169,7 +176,16 @@ def create_app(config: GatewayConfig | None = None, backend: Any = None) -> Fast
 
     @app.get("/healthz")
     async def healthz() -> dict:
-        return {"status": "ok", "backend": config.backend}
+        """存活检查：进程能响应就算活着。不检查后端，否则后端故障会让 K8s 把所有网关一起重启。"""
+        return {"status": "ok", "backend": config.backend, "version": config.version}
+
+    @app.get("/readyz")
+    async def readyz() -> JSONResponse:
+        """就绪检查：没就绪时 K8s 不把流量转过来，但也不重启。"""
+        warming = time.monotonic() - started < config.startup_delay
+        if config.fail_ready or warming:
+            return JSONResponse({"status": "not ready", "warming": warming}, status_code=503)
+        return JSONResponse({"status": "ready", "version": config.version})
 
     @app.get("/v1/models")
     async def list_models(request: Request) -> dict:
@@ -285,8 +301,10 @@ def main() -> None:
 
     import uvicorn
 
-    uvicorn.run(create_app(), host="127.0.0.1", port=int(os.getenv("TESTBENCH_PORT", "8000")),
-                log_level=os.getenv("TESTBENCH_LOG_LEVEL", "info"))
+    uvicorn.run(create_app(), host=os.getenv("TESTBENCH_HOST", "127.0.0.1"),
+                port=int(os.getenv("TESTBENCH_PORT", "8000")),
+                log_level=os.getenv("TESTBENCH_LOG_LEVEL", "info"),
+                timeout_graceful_shutdown=int(os.getenv("TESTBENCH_GRACEFUL_TIMEOUT", "20")))
 
 
 if __name__ == "__main__":

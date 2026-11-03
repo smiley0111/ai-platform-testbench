@@ -1,0 +1,42 @@
+# 灰度版：和稳定版共用同一个 Service，流量比例 = 灰度副本数 / 总就绪副本数。
+# 稳定版 3 个副本、灰度版 1 个时约 25%。要更细的比例需要 Ingress 权重或服务网格。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-canary
+  labels: {app: gateway, track: canary}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: gateway, track: canary}
+  template:
+    metadata:
+      labels: {app: gateway, track: canary}
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: gateway
+          image: testbench-gateway:ci
+          imagePullPolicy: IfNotPresent
+          ports:
+            - {name: http, containerPort: 8000}
+          env:
+            - {name: TESTBENCH_VERSION, value: v2}
+            - {name: TESTBENCH_RPM, value: "1000000"}
+            - {name: TESTBENCH_MOCK_LATENCY, value: "0.2"}
+            - {name: TESTBENCH_LOG_LEVEL, value: warning}
+          resources:
+            requests: {cpu: 100m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+            periodSeconds: 1
+            failureThreshold: 2
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 5
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "5"]

@@ -17,9 +17,12 @@ dependencies = [
 [project.optional-dependencies]
 perf = ["locust>=2.30"]
 train = ["torch>=2.2", "tensorboard>=2.14"]
+notebook = ["jupyter_client>=8.0", "ipykernel>=6.0", "nbformat>=5.9", "psutil>=5.9"]
 dev = [
     "pytest>=8.0",
+    "pytest-xdist>=3.5",
     "openai>=1.40",
+    "pyyaml>=6.0",
     "ruff>=0.5",
 ]
 
@@ -45,4 +48,5 @@ markers = [
     "ollama: 需要本地 Ollama 服务（http://localhost:11434），不可用时自动跳过",
     "training: 需要 PyTorch（CPU 版即可），未安装时自动跳过",
     "notebook: 启动真实的 Jupyter 内核（ipykernel）",
+    "k8s: 需要 kind 集群，只在设置 TESTBENCH_K8S=1 时运行",
 ]

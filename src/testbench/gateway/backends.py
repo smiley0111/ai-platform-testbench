@@ -39,9 +39,10 @@ def _completion_id() -> str:
 class MockBackend:
     """回显式假模型：回复 `mock reply: <最后一条用户消息>`，按空格切分 token。"""
 
-    def __init__(self):
+    def __init__(self, latency: float = 0.0):
         self.faults: dict[str, Fault] = {}
         self.calls: dict[str, int] = {}
+        self.latency = latency  # 每次调用固定耗时，模拟推理时间
 
     def set_fault(self, model: str, fault: Fault) -> None:
         self.faults[model] = fault
@@ -61,6 +62,8 @@ class MockBackend:
             raise BackendError(fault.status, f"injected flaky error {n}/{fault.fail_times}")
         if fault.mode == "slow":
             await asyncio.sleep(fault.delay)
+        if self.latency:
+            await asyncio.sleep(self.latency)
         return fault
 
     @staticmethod
