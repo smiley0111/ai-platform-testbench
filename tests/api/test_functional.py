@@ -1,7 +1,7 @@
 """功能正确性：响应结构、参数校验、错误码、多模态输入、Embeddings。"""
 
 import pytest
-from conftest import KEY_LIMITED, assert_error, chat_body
+from apikit import KEY_LIMITED, assert_error, chat_body
 
 
 class TestChatResponse:

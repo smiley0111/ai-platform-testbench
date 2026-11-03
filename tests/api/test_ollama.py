@@ -11,7 +11,7 @@ import time
 import httpx
 import openai
 import pytest
-from conftest import read_sse, sse_json, start_server
+from apikit import read_sse, sse_json, start_server
 
 from testbench.gateway import GatewayConfig, KeyPolicy, ModelSpec, create_app
 

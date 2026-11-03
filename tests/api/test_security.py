@@ -1,7 +1,7 @@
 """安全性：API Key 鉴权、RBAC 模型权限、请求频率限制、内容过滤、管理接口保护。"""
 
 import pytest
-from conftest import KEY_ALL, KEY_LIMITED, KEY_RATE, assert_error, chat_body, read_sse, sse_json
+from apikit import KEY_ALL, KEY_LIMITED, KEY_RATE, assert_error, chat_body, read_sse, sse_json
 
 
 def bearer(key: str) -> dict:

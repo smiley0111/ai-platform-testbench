@@ -6,7 +6,7 @@
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-from conftest import (
+from apikit import (
     BREAKER_FAILURES,
     BREAKER_RESET,
     MAX_RETRIES,

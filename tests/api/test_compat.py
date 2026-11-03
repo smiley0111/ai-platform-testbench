@@ -3,7 +3,7 @@
 import httpx
 import openai
 import pytest
-from conftest import KEY_ALL, KEY_LIMITED, KEY_RATE
+from apikit import KEY_ALL, KEY_LIMITED, KEY_RATE
 
 
 def sdk(base_url: str, key: str = KEY_ALL) -> openai.OpenAI:

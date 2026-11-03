@@ -1,6 +1,6 @@
 """流式响应（SSE）：事件格式、内容一致性、usage、中途断流、首包前重试。"""
 
-from conftest import chat_body, read_sse, sse_json
+from apikit import chat_body, read_sse, sse_json
 
 
 def stream(client, body):
